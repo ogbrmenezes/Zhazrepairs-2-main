@@ -1,0 +1,187 @@
+﻿<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Registrar OS</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    /* ======== LAYOUT GERAL ======== */
+    body {
+      background-color: #0f172a;
+      color: #e2e8f0;
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* ======== NAVBAR ======== */
+    .navbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background-color: #0f172a;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 40px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+    }
+
+    .navbar-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .navbar-left img {
+      height: 35px;
+      width: 35px;
+      border-radius: 8px;
+      object-fit: contain;
+    }
+
+    .navbar-left span {
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: #38bdf8;
+      text-shadow: none;
+      text-decoration: none;
+    }
+
+    .navbar-right {
+      display: flex;
+      gap: 10px;
+    }
+
+    .navbar-right button {
+      background-color: #22c55e;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 16px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: 0.2s;
+    }
+
+    .navbar-right button:hover {
+      background-color: #16a34a;
+    }
+
+    /* ======== CONTEÚDO ======== */
+    .container {
+      max-width: 600px;
+      margin: 120px auto;
+      background-color: #1e293b;
+      border-radius: 12px;
+      padding: 30px 40px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.4);
+    }
+
+    h1 {
+      color: #fff;
+      text-align: center;
+      margin-bottom: 25px;
+      font-size: 1.8rem;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin-top: 10px;
+      color: #cbd5e1;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      background-color: #0f172a;
+      color: #e2e8f0;
+      margin-top: 5px;
+      margin-bottom: 10px;
+      outline: none;
+    }
+
+    input:focus {
+      border: 1px solid #38bdf8;
+    }
+
+    .btn-verde {
+      width: 100%;
+      background-color: #22c55e;
+      color: #fff;
+      font-weight: 700;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 0;
+      margin-top: 15px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .btn-verde:hover {
+      background-color: #16a34a;
+    }
+  </style>
+</head>
+<body>
+  <!-- ======= NAVBAR UNIFICADA ======= -->
+  <nav class="navbar">
+    <div class="navbar-left">
+      <img src="{{ url_for('static', filename='imagens/zhaz-logo.png') }}" alt="ZHAZ">
+      <span>Soluções de A a Z</span>
+    </div>
+    <div class="navbar-right">
+      <button onclick="window.location.href='/registrar_os'">Registrar OS</button>
+      <button onclick="window.location.href='/minhas_os'">Minhas OS</button>
+      <button onclick="window.location.href='/logout'">Sair</button>
+    </div>
+  </nav>
+
+  <!-- ======= CONTEÚDO PRINCIPAL ======= -->
+  <div class="container">
+    <h1>Registrar OS</h1>
+    <label for="os">Nº OS</label>
+    <input id="os" class="input" placeholder="Digite o número da OS">
+
+    <label for="eq">Equipamento</label>
+    <input id="eq" class="input" placeholder="Ex: Coletor, RF, Terminal...">
+
+    <label for="df">Defeito</label>
+    <input id="df" class="input" placeholder="Descreva o defeito identificado">
+
+    <button class="btn-verde" id="ok">Salvar</button>
+  </div>
+
+  <script>
+    async function post(u, b) {
+      const r = await fetch(u, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(b)
+      });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({ erro: 'Erro' }));
+        alert(e.erro || 'Erro');
+        throw new Error();
+      }
+      return r.json();
+    }
+
+    ok.onclick = async () => {
+      await post('/registrar_os', {
+        os_numero: os.value.trim(),
+        equipamento: eq.value.trim(),
+        defeito: df.value.trim()
+      });
+      alert('OS registrada e SLA iniciado!');
+      os.value = eq.value = df.value = '';
+    };
+  </script>
+</body>
+</html>

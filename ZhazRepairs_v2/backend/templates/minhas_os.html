@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minhas OS</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    body {
+      background-color: #0f172a;
+      color: #e2e8f0;
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* NAVBAR */
+    .navbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background-color: #0f172a;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 40px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+    }
+
+    .navbar-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .navbar-left img {
+      height: 35px;
+      width: 35px;
+      border-radius: 8px;
+      object-fit: contain;
+    }
+
+    .navbar-left span {
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: #38bdf8;
+    }
+
+    .navbar-right {
+      display: flex;
+      gap: 10px;
+    }
+
+    .navbar-right button {
+      background-color: #22c55e;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 16px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: 0.2s;
+    }
+
+    .navbar-right button:hover {
+      background-color: #16a34a;
+    }
+
+    /* CONTEÚDO */
+    .container {
+      max-width: 90%;
+      margin: 120px auto;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+
+    p {
+      color: #94a3b8;
+      margin-bottom: 25px;
+    }
+
+    .table-container {
+      background-color: #1e293b;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 12px 14px;
+      text-align: left;
+      border-bottom: 1px solid #334155;
+    }
+
+    th {
+      color: #cbd5e1;
+      text-transform: uppercase;
+      font-size: 0.8rem;
+    }
+
+    .status {
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .status.liberada { background-color: #0284c7; }
+    .status.reparada { background-color: #22c55e; }
+    .status.nao-reparada { background-color: #ef4444; }
+
+    .btn-reparada {
+      background-color: #22c55e;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 14px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: 0.2s;
+    }
+
+    .btn-reparada:hover { background-color: #16a34a; }
+
+    .btn-nao {
+      background-color: #ef4444;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 14px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: 0.2s;
+    }
+
+    .btn-nao:hover { background-color: #dc2626; }
+  </style>
+</head>
+<body>
+  <!-- NAVBAR -->
+  <nav class="navbar">
+    <div class="navbar-left">
+      <img src="{{ url_for('static', filename='imagens/zhaz-logo.png') }}" alt="ZHAZ">
+      <span>Soluções de A a Z</span>
+    </div>
+    <div class="navbar-right">
+      <button onclick="window.location.href='/registrar_os'">Registrar OS</button>
+      <button onclick="window.location.href='/minhas_os'">Minhas OS</button>
+      <button onclick="window.location.href='/logout'">Sair</button>
+    </div>
+  </nav>
+
+  <!-- CONTEÚDO -->
+  <div class="container">
+    <h1>Minhas OS</h1>
+    <p>Visualize o andamento das suas ordens de serviço e atualize o status final após os testes.</p>
+
+    <div class="table-container">
+      <table id="tbl_os">
+        <thead>
+          <tr>
+            <th>Nº OS</th>
+            <th>Equipamento</th>
+            <th>Status</th>
+            <th>Data Registro</th>
+            <th>Lib. Teste</th>
+            <th>Resultado</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="lista_os">
+          <tr><td colspan="7" style="text-align:center;">Carregando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    async function carregarOS() {
+      const r = await fetch('/api/minhas_os');
+      const dados = await r.json();
+      const tbody = document.getElementById('lista_os');
+      tbody.innerHTML = '';
+
+      if (!dados.length) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Nenhuma OS cadastrada.</td></tr>`;
+        return;
+      }
+
+      dados.forEach(os => {
+        const tr = document.createElement('tr');
+        const statusClass =
+          os.status === 'Liberada para teste' ? 'liberada' :
+          os.status === 'Reparada' ? 'reparada' :
+          os.status === 'Não reparada' ? 'nao-reparada' : '';
+
+        tr.innerHTML = `
+          <td><b>${os.os_numero}</b><br><small>${os.data_registro || ''}</small></td>
+          <td>${os.equipamento || '-'}</td>
+          <td><span class="status ${statusClass}">${os.status}</span></td>
+          <td>${os.data_registro || '-'}</td>
+          <td>${os.liberado_teste_em || '-'}</td>
+          <td>${os.resultado || '-'}</td>
+          <td class="actions">
+            ${os.status === 'Liberada para teste' && !os.resultado_em ? `
+              <button class="btn-reparada" onclick="marcar(${os.id}, true)">Reparada</button>
+              <button class="btn-nao" onclick="marcar(${os.id}, false)">Não reparada</button>
+            ` : '-'}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function marcar(id, sucesso) {
+      const rota = sucesso ? '/marcar_sucesso' : '/marcar_sem_reparo';
+      const r = await fetch(rota, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ os_id: id })
+      });
+      if (r.ok) {
+        alert('Status atualizado!');
+        carregarOS();
+      } else {
+        const e = await r.json();
+        alert('Erro: ' + (e.erro || 'Falha ao atualizar.'));
+      }
+    }
+
+    carregarOS();
+  </script>
+</body>
+</html>

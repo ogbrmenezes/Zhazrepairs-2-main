@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OS – Operação (Admin)</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+.table { width:100%; border-collapse: collapse; margin-top:16px; }
+.table th, .table td { border-bottom:1px solid #1f2a44; padding:10px; text-align:left; }
+.badge { padding:3px 8px; border-radius:8px; font-size:12px; display:inline-block; }
+.badge.att { background:#1f2937; color:#93c5fd; }
+.badge.test { background:#0b4a6f; color:#a7f3d0; }
+.badge.ok { background:#064e3b; color:#bbf7d0; }
+.badge.no { background:#661a1a; color:#fecaca; }
+.row-actions { display:flex; gap:8px; }
+.small { font-size:12px; color:#94a3b8; }
+
+/* Botão de topo/inline (não ocupar 100% da largura) */
+.btn-inline{
+  width: auto !important;
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  line-height: 1;
+}
+
+</style>
+
+</head>
+<body class="bg">
+<a class="brand-logo" href="/"><img src="{{ url_for('static', filename='imagens/zhaz-logo.png') }}"><span class="wordmark">ZHAZ</span><span class="tagline">Soluções de A a Z</span></a>
+
+
+<a href="/logout"
+   class="btn btn-verde btn-inline"
+   style="position:fixed; right:20px; top:16px; z-index:1100;">
+  Sair
+</a>
+
+
+<div class="wrap">
+  <h1 class="title">Operação de OS (Admin)</h1>
+
+  <div class="card">
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <input id="q" class="input" placeholder="Pesquisar por Nº OS ou equipamento" style="flex:1; min-width:260px;">
+      <select id="status" class="input" style="max-width:220px;">
+        <option value="">Todos os status</option>
+        <option>Em atenção</option>
+        <option>Liberada para teste</option>
+        <option>Reparada</option>
+        <option>Não reparada</option>
+      </select>
+      <button class="btn btn-azul" id="buscar" style="max-width:160px;">Buscar</button>
+    </div>
+
+    <table class="table" id="t">
+      <thead>
+        <tr>
+          <th>Nº OS</th>
+          <th>Equipamento</th>
+          <th>Status</th>
+          <th class="small">SLA início</th>
+          <th class="small">Pegou</th>
+          <th class="small">Lib. teste</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody id="tb"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function badge(s){
+  if(s==='Em atenção') return '<span class="badge att">Em atenção</span>';
+  if(s==='Liberada para teste') return '<span class="badge test">Liberada p/ teste</span>';
+  if(s==='Reparada') return '<span class="badge ok">Reparada</span>';
+  if(s==='Não reparada') return '<span class="badge no">Não reparada</span>';
+  return s||'';
+}
+
+async function api(url, opts){
+  const r = await fetch(url, opts||{});
+  if(!r.ok){ alert('Erro: '+r.status); throw new Error(); }
+  return r.json();
+}
+
+async function carregar(){
+  const q = document.getElementById('q').value.trim();
+  const st = document.getElementById('status').value;
+  const params = new URLSearchParams(); if(q) params.set('q', q); if(st) params.set('status', st);
+  const dados = await api('/api/os?'+params.toString());
+  const tb = document.getElementById('tb'); tb.innerHTML = '';
+  for(const x of dados){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><b>${x.os_numero}</b><div class="small">${x.data_registro||''}</div></td>
+      <td>${x.equipamento||''}</td>
+      <td>${badge(x.status)}</td>
+      <td class="small">${x.sla_inicio||''}</td>
+      <td class="small">${x.pego_por_admin_em||''}</td>
+      <td class="small">${x.liberado_teste_em||''}</td>
+      <td>
+        <div class="row-actions">
+          <button class="btn btn-claro" data-a="pegar" data-id="${x.id}">Pegar</button>
+          <button class="btn btn-verde" data-a="liberar" data-id="${x.id}">Liberar p/ teste</button>
+        </div>
+      </td>`;
+    tb.appendChild(tr);
+  }
+}
+
+document.getElementById('buscar').onclick = carregar;
+document.getElementById('status').onchange = carregar;
+document.addEventListener('DOMContentLoaded', carregar);
+
+document.getElementById('t').addEventListener('click', async (e)=>{
+  const b = e.target.closest('button'); if(!b) return;
+  const id = +b.dataset.id; const ac = b.dataset.a;
+  try{
+    if(ac==='pegar'){
+      await api(`/os/${id}/pegar`, {method:'POST'});
+    }else if(ac==='liberar'){
+      await api('/liberar_para_teste', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ os_id: id })});
+    }
+    await carregar();
+  }catch(err){ console.error(err); }
+});
+
+
+
+</script>
+</body>
+</html>
+

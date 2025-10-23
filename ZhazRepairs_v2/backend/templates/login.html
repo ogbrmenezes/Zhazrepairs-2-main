@@ -1,0 +1,219 @@
+﻿<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ZHAZ Repairs • Login</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    body {
+      background-color: #0f172a;
+      color: #e2e8f0;
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    /* ===== LOGO ZHAZ ===== */
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 30px;
+      text-decoration: none;
+    }
+
+    .brand-logo img {
+      height: 42px;
+      width: 42px;
+      border-radius: 10px;
+      object-fit: contain;
+    }
+
+    .wordmark {
+      font-weight: 800;
+      font-size: 1.2rem;
+      color: #38bdf8;
+    }
+
+    .tagline {
+      font-size: 0.95rem;
+      color: #94a3b8;
+      margin-left: 6px;
+    }
+
+    /* ===== CONTEÚDO ===== */
+    .wrap {
+      margin-top: 40px;
+      text-align: center;
+      width: 100%;
+      max-width: 1200px;
+      padding: 0 20px;
+    }
+
+    .title {
+      font-size: 1.8rem;
+      color: #fff;
+      margin-bottom: 10px;
+    }
+
+    .muted {
+      color: #94a3b8;
+      font-size: 1rem;
+      margin-bottom: 30px;
+    }
+
+    /* ===== GRID ===== */
+    .grid {
+      display: flex;
+      justify-content: center;
+      gap: 25px;
+      flex-wrap: wrap;
+      width: 100%;
+    }
+
+    .card {
+      background-color: #1e293b;
+      padding: 30px;
+      border-radius: 14px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      width: 280px;
+      text-align: center;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.5);
+    }
+
+    .card h2 {
+      color: #fff;
+      margin-bottom: 20px;
+      font-size: 1.3rem;
+    }
+
+    .input {
+      width: 100%;
+      padding: 10px 12px;
+      border: none;
+      border-radius: 8px;
+      background-color: #0f172a;
+      color: #e2e8f0;
+      margin-bottom: 12px;
+      outline: none;
+      transition: border 0.2s;
+    }
+
+    .input:focus {
+      border: 1px solid #38bdf8;
+    }
+
+    /* ===== BOTÕES ===== */
+    .btn {
+      width: 100%;
+      padding: 10px 14px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.25s ease;
+      font-size: 0.95rem;
+    }
+
+    .btn-verde { background-color: #22c55e; color: #fff; }
+    .btn-verde:hover { background-color: #16a34a; }
+
+    .btn-azul { background-color: #2563eb; color: #fff; }
+    .btn-azul:hover { background-color: #1d4ed8; }
+
+    .btn-claro { background-color: #38bdf8; color: #0f172a; font-weight: 700; }
+    .btn-claro:hover { background-color: #0ea5e9; }
+
+    /* ===== RESPONSIVIDADE ===== */
+    @media (max-width: 992px) {
+      .title { font-size: 1.6rem; }
+      .grid { gap: 20px; }
+      .card { width: 260px; }
+    }
+
+    @media (max-width: 768px) {
+      .grid { flex-direction: column; align-items: center; }
+      .card { width: 90%; max-width: 360px; }
+      .brand-logo { margin-top: 20px; }
+    }
+
+    @media (max-width: 480px) {
+      .wordmark { font-size: 1rem; }
+      .tagline { font-size: 0.8rem; }
+      .title { font-size: 1.4rem; }
+      .card { padding: 25px; }
+      .btn { font-size: 0.9rem; }
+    }
+  </style>
+</head>
+<body class="bg">
+  <!-- LOGO -->
+  <a class="brand-logo" href="/">
+    <img src="{{ url_for('static', filename='imagens/zhaz-logo.png') }}" alt="ZHAZ">
+    <span class="wordmark">ZHAZ</span>
+    <span class="tagline">Soluções de A a Z</span>
+  </a>
+
+  <!-- CONTEÚDO -->
+  <div class="wrap">
+    
+    <h1 class="title">Acesso ao Sistema</h1>
+    <p class="muted">Escolha seu tipo de acesso.</p>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Rodrigo (Admin)</h2>
+        <input id="adm-email" class="input" placeholder="E-mail">
+        <input id="adm-senha" class="input" type="password" placeholder="Senha">
+        <button class="btn btn-verde" id="btn-adm">Entrar</button>
+      </div>
+
+      <div class="card">
+        <h2>Diretoria</h2>
+        <input id="dir-email" class="input" placeholder="E-mail">
+        <input id="dir-senha" class="input" type="password" placeholder="Senha">
+        <button class="btn btn-azul" id="btn-dir">Entrar</button>
+      </div>
+
+      <div class="card">
+        <h2>Técnico</h2>
+        <input id="tec-nome" class="input" placeholder="Nome completo">
+        <input id="tec-email" class="input" placeholder="E-mail">
+        <button class="btn btn-claro" id="btn-tec">Entrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPT ORIGINAL -->
+  <script>
+  async function post(url, body){
+    const r = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok){ const e = await r.json().catch(()=>({erro:'Erro'})); alert(e.erro||'Erro'); throw new Error(); }
+    return r.json();
+  }
+  function go(p){ location.href=p; }
+  document.getElementById('btn-adm').onclick = async ()=>{
+    await post('/login/admin',{email:document.getElementById('adm-email').value.trim(),senha:document.getElementById('adm-senha').value});
+    go('/admin/os');
+  };
+  document.getElementById('btn-dir').onclick = async ()=>{
+    await post('/login/diretoria',{email:document.getElementById('dir-email').value.trim(),senha:document.getElementById('dir-senha').value});
+    go('/dashboard');
+  };
+  document.getElementById('btn-tec').onclick = async ()=>{
+    await post('/login/tecnico',{nome:document.getElementById('tec-nome').value.trim(),email:document.getElementById('tec-email').value.trim()});
+    go('/registrar_os');
+  };
+  </script>
+</body>
+</html>

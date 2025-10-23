@@ -1,0 +1,314 @@
+﻿<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ZHAZ • Dashboard</title>
+  <link rel="icon" href="{{ url_for('static', filename='imagens/zhaz-logo.png') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <style>
+    :root { --bg:#0c1524; --card:#101b30; --muted:#8aa0c5; --txt:#e8f0ff; }
+    body { background: var(--bg); color: var(--txt); font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    .wrap { max-width: 1200px; margin: 24px auto; padding: 0 16px; }
+    .brand { display:flex; align-items:center; gap:8px; margin-bottom: 8px; }
+    .brand img { width: 28px; height: 28px; border-radius: 6px; }
+    .headline { display:flex; align-items:end; justify-content:space-between; }
+    h1 { font-size: 40px; margin: 10px 0 4px; }
+    .sub { color: var(--muted); }
+    .grid { display:grid; gap:16px; }
+    .cards { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+    .card { background: var(--card); border:1px solid rgba(255,255,255,.06); border-radius:16px; padding:16px; }
+    .k { font-size:12px; color: var(--muted); }
+    .v { font-size:28px; font-weight:700; margin-top:6px; }
+    .flex { display:flex; gap:16px; }
+    .col { flex:1; }
+    .title { font-size:18px; font-weight:700; margin-bottom:8px; }
+    .list { display:flex; flex-direction:column; gap:10px; max-height:330px; overflow:auto; }
+    .row { display:flex; justify-content:space-between; font-size:14px; padding:8px 0; border-bottom:1px dashed rgba(255,255,255,.06); }
+    .row:last-child { border-bottom: 0; }
+    .muted { color: var(--muted); }
+    canvas { width: 100% !important; height: 320px !important; }
+    @media (max-width: 1100px){ .cards{ grid-template-columns: repeat(4, 1fr);} }
+    @media (max-width: 700px){ .cards{ grid-template-columns: repeat(2, 1fr);} }
+
+    /* Botão de topo/inline (não ocupar 100% da largura) */
+.btn-inline{
+  width: auto !important;
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  line-height: 1;
+}
+
+  </style>
+  <!-- Chart.js via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  
+  <div class="wrap">
+    <div class="brand">
+      <img src="{{ url_for('static', filename='imagens/zhaz-logo.png') }}" alt="ZHAZ" />
+      <strong>ZHAZ</strong><span class="muted">• Soluções de A a Z</span>
+    </div>
+
+    <div class="headline">
+      <div>
+        <h1>Dashboard</h1>
+        <div class="sub">Métricas em tempo real do fluxo de chamados/equipamentos.</div>
+      </div>
+      <div class="muted" id="lastSync">—</div>
+    </div>
+
+    <a href="/login"
+   class="btn btn-verde btn-inline"
+   style="position:fixed; right:20px; top:16px; z-index:1100;">
+ voltar
+</a>
+
+
+<div class="card" style="margin:16px 0;">
+  <div class="title">Desempenho do reparador</div>
+  <div class="flex" style="gap:8px; align-items:center;">
+    <input id="rep_input" placeholder="e-mail do reparador (ex.: rodrigo.oliveira@zhaz.com.br)" style="flex:1; padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,.08); background:#0e1830; color:#e8f0ff;">
+    <button onclick="carregarReparador()" style="padding:10px 14px; border-radius:10px;">Buscar</button>
+    <div class="muted" id="rep_header"></div>
+  </div>
+  <div class="grid" style="grid-template-columns: repeat(4, 1fr); margin-top:12px;">
+    <div class="card"><div class="k">Total (OS liberadas por ele)</div><div class="v" id="r_total">0</div></div>
+    <div class="card"><div class="k">Reparadas</div><div class="v" id="r_rep">0</div></div>
+    <div class="card"><div class="k">Não reparadas</div><div class="v" id="r_nrep">0</div></div>
+    <div class="card"><div class="k">Taxa de sucesso</div><div class="v" id="r_sucesso">0%</div></div>
+  </div>
+  <div class="flex" style="margin-top:12px;">
+    <div class="card col">
+      <div class="title">Tendência (14 dias) — reparador</div>
+      <canvas id="r_trend"></canvas>
+    </div>
+    <div class="card col" style="max-width:420px;">
+      <div class="title">Top equipamentos (taxa de sucesso)</div>
+      <div id="r_top" class="list"></div>
+    </div>
+  </div>
+</div>
+
+
+    <!-- Cards -->
+    <div class="grid cards">
+      <div class="card"><div class="k">Total</div><div id="k_total" class="v">0</div></div>
+      <div class="card"><div class="k">Em trânsito</div><div id="k_em_transito" class="v">0</div></div>
+      <div class="card"><div class="k">Manutenção</div><div id="k_manutencao" class="v">0</div></div>
+      <div class="card"><div class="k">Fase final</div><div id="k_fase_final" class="v">0</div></div>
+      <div class="card"><div class="k">Testes</div><div id="k_testes" class="v">0</div></div>
+      <div class="card"><div class="k">Operacional</div><div id="k_operacional" class="v">0</div></div>
+      <div class="card"><div class="k">Entradas hoje</div><div id="k_entradas" class="v">0</div></div>
+      <div class="card"><div class="k">Saídas hoje</div><div id="k_saidas" class="v">0</div></div>
+    </div>
+
+    <div class="flex" style="margin-top:16px;">
+      <div class="card col">
+        <div class="title">Tendência (14 dias)</div>
+        <canvas id="trendChart"></canvas>
+      </div>
+      <div class="card col" style="max-width:420px;">
+        <div class="title">Aging por status (dias)</div>
+        <canvas id="agingChart"></canvas>
+        <div class="muted" style="font-size:12px; margin-top:6px;">Média de dias que os itens atuais passaram em cada status.</div>
+      </div>
+    </div>
+
+    <div class="flex" style="margin-top:16px;">
+      <div class="card col">
+        <div class="title">Indicadores de Tempo</div>
+        <div class="grid" style="grid-template-columns: repeat(3, 1fr); gap:12px;">
+          <div class="card">
+            <div class="k">MTTR (médio)</div>
+            <div class="v" id="k_mttr">—</div>
+            <div class="muted" style="font-size:12px;">Tempo médio para finalizar (dias).</div>
+          </div>
+          <div class="card">
+            <div class="k">Lead time 30d</div>
+            <div class="v" id="k_lead">—</div>
+            <div class="muted" style="font-size:12px;">Média de entrada→saída (últimos 30 dias).</div>
+          </div>
+          <div class="card">
+            <div class="k">SLA próximos 2d</div>
+            <div class="v" id="k_sla">0</div>
+            <div class="muted" style="font-size:12px;">Prev. de saída nas próximas 48h (pendentes).</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card col">
+        <div class="title">Atividades recentes</div>
+        <div class="list" id="recentList"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const apiBase = "{{ url_for('metrics') }}".replace('/api/metrics',''); // base do app
+let trendChart, agingChart;
+
+function setText(id, val){ document.getElementById(id).textContent = val ?? 0; }
+
+function upCards(cards){
+  setText('k_total', cards.total);
+  setText('k_em_transito', cards.em_transito);
+  setText('k_manutencao', cards.manutencao);
+  setText('k_fase_final', cards.fase_final);
+  setText('k_testes', cards.testes);
+  setText('k_operacional', cards.operacional);
+  setText('k_entradas', cards.entradas_hoje);
+  setText('k_saidas', cards.saidas_hoje);
+}
+
+function fmtDays(v){
+  if (v === null || v === undefined) return '—';
+  return Number(v).toFixed(1) + ' d';
+}
+
+function upTimeKpis(time){
+  setText('k_mttr', fmtDays(time.mttr_dias));
+  setText('k_lead', fmtDays(time.lead_time_30d));
+  setText('k_sla', time.sla_proximas_48h);
+}
+
+function upRecent(list){
+  const el = document.getElementById('recentList');
+  el.innerHTML = '';
+  if(!list || !list.length){ el.innerHTML = '<div class="muted">Sem atualizações.</div>'; return; }
+  list.forEach(r=>{
+    const div = document.createElement('div');
+    div.className = 'row';
+    div.innerHTML = `<div>#${r.numero}</div><div class="muted">${r.status}</div><div class="muted">${r.quando}</div>`;
+    el.appendChild(div);
+  });
+}
+
+function upTrend(trend){
+  const labels = trend.map(x=>x.dia.slice(5)); // MM-DD
+  const entradas = trend.map(x=>x.entradas||0);
+  const saidas = trend.map(x=>x.saidas||0);
+
+  const data = {
+    labels,
+    datasets: [
+      { label: 'Entradas', data: entradas, tension:.3 },
+      { label: 'Saídas', data: saidas, tension:.3 }
+    ]
+  };
+  if (trendChart) { trendChart.data = data; trendChart.update(); return; }
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data,
+    options: {
+      responsive: true,
+      plugins: { legend:{ labels:{ color:'#cfe1ff' } } },
+      scales: {
+        x: { ticks:{ color:'#9db4da' }, grid:{ color:'rgba(255,255,255,.06)'} },
+        y: { ticks:{ color:'#9db4da' }, grid:{ color:'rgba(255,255,255,.06)'} }
+      }
+    }
+  });
+}
+
+function upAging(aging){
+  const labels = Object.keys(aging);
+  const data = labels.map(k=> aging[k] ?? 0);
+  const cfg = {
+    labels,
+    datasets: [{ data }]
+  };
+  if (agingChart){ agingChart.data = cfg; agingChart.update(); return; }
+  const ctx = document.getElementById('agingChart').getContext('2d');
+  agingChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: cfg,
+    options: {
+      plugins: {
+        legend: { labels:{ color:'#cfe1ff' } },
+        tooltip:{ callbacks:{ label: (ctx)=> `${ctx.label}: ${Number(ctx.parsed).toFixed(1)} d` } }
+      }
+    }
+  });
+}
+
+async function load(){
+  const r = await fetch('{{ url_for("metrics") }}');
+  const j = await r.json();
+
+  upCards(j.cards);
+  upTimeKpis(j.time);
+  upTrend(j.trend);
+  upAging(j.aging_status);
+  upRecent(j.last_activities);
+
+  document.getElementById('lastSync').textContent = 'Atualizado: ' + new Date().toLocaleString();
+}
+
+// polling a cada 10s (se quiser WebSocket, dá pra plugar depois)
+load();
+setInterval(load, 10000);
+
+
+</script>
+<script>
+let rTrendChart;
+
+async function carregarReparador(){
+  const email = document.getElementById('rep_input').value.trim();
+  if(!email) return;
+  const r = await fetch('/api/metrics/reparador?reparador='+encodeURIComponent(email));
+  if(!r.ok){ document.getElementById('rep_header').textContent = 'Reparador não encontrado ou sem dados.'; return; }
+  const j = await r.json();
+  document.getElementById('rep_header').textContent = j.reparador.email;
+  document.getElementById('r_total').textContent   = j.cards.total;
+  document.getElementById('r_rep').textContent     = j.cards.reparadas;
+  document.getElementById('r_nrep').textContent    = j.cards.nao_reparadas;
+  document.getElementById('r_sucesso').textContent = (j.cards.taxa_sucesso_pct||0)+'%';
+
+  // tendência
+  const labels = j.trend.map(x=>x.dia.slice(5));
+  const entradas = j.trend.map(x=>x.entradas||0);
+  const saidas = j.trend.map(x=>x.saidas||0);
+  const data = { labels, datasets:[
+    { label:'Entradas', data: entradas, tension:.3 },
+    { label:'Saídas',   data: saidas,   tension:.3 }
+  ]};
+  if(rTrendChart){ rTrendChart.data = data; rTrendChart.update(); }
+  else {
+    const ctx = document.getElementById('r_trend').getContext('2d');
+    rTrendChart = new Chart(ctx, { type:'line', data, options:{
+      responsive:true,
+      plugins:{ legend:{ labels:{ color:'#cfe1ff' } } },
+      scales:{ x:{ ticks:{ color:'#9db4da' }, grid:{ color:'rgba(255,255,255,.06)'} },
+               y:{ ticks:{ color:'#9db4da' }, grid:{ color:'rgba(255,255,255,.06)'} } }
+    }});
+  }
+
+  // top equipamentos
+  const top = document.getElementById('r_top'); top.innerHTML='';
+  if(!j.top_equipamentos.length){ top.innerHTML = '<div class="muted">Sem dados suficientes.</div>'; }
+  j.top_equipamentos.forEach(it=>{
+    const taxa = it.total ? Math.round(it.reparadas*100/it.total) : 0;
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `<div>${it.equipamento||'(sem nome)'}</div>
+                     <div class="muted">${it.reparadas}/${it.total} • ${taxa}%</div>`;
+    top.appendChild(row);
+  });
+}
+
+// Pré-carrega o Rodrigo
+window.addEventListener('DOMContentLoaded', ()=>{
+  const email = 'rodrigo.oliveira@zhaz.com.br';
+  const el = document.getElementById('rep_input');
+  if (el){ el.value = email; carregarReparador(); }
+});
+</script>
+
+</body>
+</html>
