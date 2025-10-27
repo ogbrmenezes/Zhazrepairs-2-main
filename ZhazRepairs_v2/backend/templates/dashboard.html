@@ -40,6 +40,92 @@
   line-height: 1;
 }
 
+.card-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.card-link .card {
+  transition: all 0.25s ease;
+}
+
+.card-link .card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(30, 136, 229, 0.4);
+  cursor: pointer;
+}
+/* === Carrossel de Métricas === */
+.metrics-carousel {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  gap: 20px;
+  padding: 10px 0 25px;
+}
+.slide {
+  flex: 0 0 100%;
+  background: #0b1220;
+  border-radius: 16px;
+  box-shadow: 0 6px 25px rgba(0, 0, 0, 0.4);
+  padding: 20px;
+  scroll-snap-align: start;
+  position: relative;
+  min-height: 360px;
+}
+.slide h3 {
+  color: #dbeafe;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.btn-expand {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: var(--azul);
+  border: none;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.btn-expand:hover {
+  background: var(--verde);
+}
+
+/* === Gráficos 3D estilizados === */
+canvas {
+  width: 100% !important;
+  height: 340px !important;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #101b30, #0d1422);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.5), inset 0 0 20px rgba(30,136,229,0.08);
+  padding: 10px;
+}
+
+/* Iluminação simulada */
+.slide {
+  perspective: 1000px;
+  transform-style: preserve-3d;
+  transition: transform 0.3s ease;
+}
+.slide:hover {
+  transform: translateY(-4px) rotateX(3deg);
+}
+
+/* Botão flutuante de ampliar */
+.btn-expand {
+  background: linear-gradient(90deg, #1E88E5, #43A047);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+.btn-expand:hover {
+  background: linear-gradient(90deg, #43A047, #1E88E5);
+  transform: scale(1.05);
+}
+
+
+
+
   </style>
   <!-- Chart.js via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -75,36 +161,65 @@
     <button onclick="carregarReparador()" style="padding:10px 14px; border-radius:10px;">Buscar</button>
     <div class="muted" id="rep_header"></div>
   </div>
-  <div class="grid" style="grid-template-columns: repeat(4, 1fr); margin-top:12px;">
-    <div class="card"><div class="k">Total (OS liberadas por ele)</div><div class="v" id="r_total">0</div></div>
-    <div class="card"><div class="k">Reparadas</div><div class="v" id="r_rep">0</div></div>
-    <div class="card"><div class="k">Não reparadas</div><div class="v" id="r_nrep">0</div></div>
-    <div class="card"><div class="k">Taxa de sucesso</div><div class="v" id="r_sucesso">0%</div></div>
-  </div>
-  <div class="flex" style="margin-top:12px;">
-    <div class="card col">
-      <div class="title">Tendência (14 dias) — reparador</div>
-      <canvas id="r_trend"></canvas>
+  <!-- Cards -->
+<div class="grid cards">
+  <a href="{{ url_for('view_detalhes', tipo='total') }}" class="card-link">
+    <div class="card">
+      <div class="k">Total</div>
+      <div id="k_total" class="v">0</div>
     </div>
-    <div class="card col" style="max-width:420px;">
-      <div class="title">Top equipamentos (taxa de sucesso)</div>
-      <div id="r_top" class="list"></div>
+  </a>
+
+  <a href="{{ url_for('view_detalhes', tipo='transito') }}" class="card-link">
+    <div class="card">
+      <div class="k">Em trânsito</div>
+      <div id="k_em_transito" class="v">0</div>
     </div>
-  </div>
+  </a>
+
+  <a href="{{ url_for('view_detalhes', tipo='manutencao') }}" class="card-link">
+    <div class="card">
+      <div class="k">Manutenção</div>
+      <div id="k_manutencao" class="v">0</div>
+    </div>
+  </a>
+
+  <a href="{{ url_for('view_detalhes', tipo='fase_final') }}" class="card-link">
+    <div class="card">
+      <div class="k">Fase final</div>
+      <div id="k_fase_final" class="v">0</div>
+    </div>
+  </a>
+
+  <a href="{{ url_for('view_detalhes', tipo='testes') }}" class="card-link">
+    <div class="card">
+      <div class="k">Testes</div>
+      <div id="k_testes" class="v">0</div>
+    </div>
+  </a>
+
+  <a href="{{ url_for('view_detalhes', tipo='operacional') }}" class="card-link">
+    <div class="card">
+      <div class="k">Operacional</div>
+      <div id="k_operacional" class="v">0</div>
+    </div>
+  </a>
+
+  <a href="{{ url_for('view_detalhes', tipo='entradas') }}" class="card-link">
+    <div class="card">
+      <div class="k">Entradas hoje</div>
+      <div id="k_entradas" class="v">0</div>
+    </div>
+  </a>
+
+  <a href="{{ url_for('view_detalhes', tipo='saidas') }}" class="card-link">
+    <div class="card">
+      <div class="k">Saídas hoje</div>
+      <div id="k_saidas" class="v">0</div>
+    </div>
+  </a>
 </div>
 
-
-    <!-- Cards -->
-    <div class="grid cards">
-      <div class="card"><div class="k">Total</div><div id="k_total" class="v">0</div></div>
-      <div class="card"><div class="k">Em trânsito</div><div id="k_em_transito" class="v">0</div></div>
-      <div class="card"><div class="k">Manutenção</div><div id="k_manutencao" class="v">0</div></div>
-      <div class="card"><div class="k">Fase final</div><div id="k_fase_final" class="v">0</div></div>
-      <div class="card"><div class="k">Testes</div><div id="k_testes" class="v">0</div></div>
-      <div class="card"><div class="k">Operacional</div><div id="k_operacional" class="v">0</div></div>
-      <div class="card"><div class="k">Entradas hoje</div><div id="k_entradas" class="v">0</div></div>
-      <div class="card"><div class="k">Saídas hoje</div><div id="k_saidas" class="v">0</div></div>
-    </div>
 
     <div class="flex" style="margin-top:16px;">
       <div class="card col">
@@ -257,18 +372,82 @@ setInterval(load, 10000);
 </script>
 <script>
 let rTrendChart;
-
-async function carregarReparador(){
+async function carregarReparador() {
   const email = document.getElementById('rep_input').value.trim();
-  if(!email) return;
-  const r = await fetch('/api/metrics/reparador?reparador='+encodeURIComponent(email));
-  if(!r.ok){ document.getElementById('rep_header').textContent = 'Reparador não encontrado ou sem dados.'; return; }
-  const j = await r.json();
-  document.getElementById('rep_header').textContent = j.reparador.email;
-  document.getElementById('r_total').textContent   = j.cards.total;
-  document.getElementById('r_rep').textContent     = j.cards.reparadas;
-  document.getElementById('r_nrep').textContent    = j.cards.nao_reparadas;
-  document.getElementById('r_sucesso').textContent = (j.cards.taxa_sucesso_pct||0)+'%';
+  if (!email) return;
+
+  try {
+    const r = await fetch('/api/metrics/reparador?reparador=' + encodeURIComponent(email));
+    if (!r.ok) {
+      document.getElementById('rep_header').textContent = 'Reparador não encontrado ou sem dados.';
+      return;
+    }
+
+    const j = await r.json();
+    document.getElementById('rep_header').textContent = j.reparador.email;
+
+    // === Atualiza gráfico de desempenho ===
+    const ctx = document.getElementById('graficoDesempenho').getContext('2d');
+    if (window.reparadorChart) window.reparadorChart.destroy();
+
+    const dados = [j.cards.reparadas, j.cards.nao_reparadas];
+    window.reparadorChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Reparadas', 'Não reparadas'],
+        datasets: [{
+          data: dados,
+          backgroundColor: ['#43A047', '#1E88E5'],
+          borderWidth: 4,
+          borderColor: '#0f172a',
+          hoverOffset: 14
+        }]
+      },
+      options: {
+        cutout: '65%',
+        rotation: -90,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { color: '#e2e8f0', font: { size: 14, weight: '600' } }
+          },
+          tooltip: {
+            backgroundColor: '#0f172a',
+            borderColor: '#43A047',
+            borderWidth: 1,
+            titleColor: '#43A047',
+            bodyColor: '#e2e8f0'
+          }
+        },
+        animation: { animateRotate: true, animateScale: true }
+      }
+    });
+
+    // === Lista os equipamentos mais difíceis de reparar ===
+    const top = document.getElementById('r_top');
+    if (top) {
+      top.innerHTML = '';
+      if (!j.top_equipamentos.length) {
+        top.innerHTML = '<div class="muted">Sem dados suficientes.</div>';
+      } else {
+        j.top_equipamentos.forEach(it => {
+          const taxa = it.total ? Math.round((it.reparadas * 100) / it.total) : 0;
+          const row = document.createElement('div');
+          row.className = 'row';
+          row.innerHTML = `
+            <div>${it.equipamento || '(sem nome)'}</div>
+            <div class="muted">${it.reparadas}/${it.total} • ${taxa}%</div>
+          `;
+          top.appendChild(row);
+        });
+      }
+    }
+
+  } catch (err) {
+    console.error('Erro ao carregar dados do reparador:', err);
+    document.getElementById('rep_header').textContent = 'Erro ao carregar dados.';
+  }
+}
 
   // tendência
   const labels = j.trend.map(x=>x.dia.slice(5));
@@ -300,7 +479,6 @@ async function carregarReparador(){
                      <div class="muted">${it.reparadas}/${it.total} • ${taxa}%</div>`;
     top.appendChild(row);
   });
-}
 
 // Pré-carrega o Rodrigo
 window.addEventListener('DOMContentLoaded', ()=>{
@@ -309,6 +487,165 @@ window.addEventListener('DOMContentLoaded', ()=>{
   if (el){ el.value = email; carregarReparador(); }
 });
 </script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let charts = {};
+
+document.addEventListener("DOMContentLoaded", async () => {
+  try {
+    // Carrega métricas do reparador Rodrigo
+    const reparadorResp = await fetch("/api/metrics/reparador?reparador=rodrigo.oliveira@zhaz.com.br");
+    const reparadorData = await reparadorResp.json();
+
+    if (reparadorData && reparadorData.cards) {
+      renderDesempenho(reparadorData.cards);
+    }
+
+    // Carrega ranking de técnicos
+    const rankingResp = await fetch("/api/metrics/ranking_tecnicos");
+    const rankingData = await rankingResp.json();
+
+  renderRanking(rankingData);
+
+
+  } catch (err) {
+    console.error("Erro ao carregar gráficos:", err);
+  }
+});
+
+
+
+function renderTendencia(trend) {
+  const ctx = document.getElementById("graficoTendencia");
+  const labels = trend.map(d => d.dia.slice(5));
+  const entradas = trend.map(d => d.entradas);
+  const saidas = trend.map(d => d.saidas);
+  charts.tendencia = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: "Entradas", data: entradas, borderColor: "#1E88E5", fill: false, tension: 0.3 },
+        { label: "Saídas", data: saidas, borderColor: "#ef5350", fill: false, tension: 0.3 }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: "#e2e8f0" } } },
+      scales: { x: { ticks: { color: "#94a3b8" } }, y: { ticks: { color: "#94a3b8" } } }
+    }
+  });
+}
+
+
+// ==== Desempenho 3D ====
+function renderDesempenho(cards) {
+  const ctx = document.getElementById("graficoDesempenho");
+  const dados = [cards.reparadas, cards.nao_reparadas];
+  charts.desempenho = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ["Reparadas", "Não reparadas"],
+      datasets: [{
+        data: dados,
+        backgroundColor: ["#43A047", "#1E88E5"],
+        borderWidth: 4,
+        borderColor: "#0f172a",
+        hoverOffset: 14,
+        shadowOffsetX: 4,
+        shadowOffsetY: 4,
+        shadowBlur: 10,
+        shadowColor: 'rgba(0,0,0,0.4)'
+      }]
+    },
+    options: {
+      cutout: '60%',
+      rotation: -90,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: "#e2e8f0", font: { size: 14, weight: '600' } } },
+        tooltip: {
+          backgroundColor: '#0f172a',
+          borderColor: '#43A047',
+          borderWidth: 1,
+          titleColor: '#43A047',
+          bodyColor: '#e2e8f0'
+        }
+      },
+      animation: { animateRotate: true, animateScale: true }
+    }
+  });
+}
+
+// ==== Ranking 3D ====
+function renderRanking(ranking) {
+  const ctx = document.getElementById("graficoRanking");
+  const nomes = ranking.map(t => t.nome);
+  const entregas = ranking.map(t => t.entregas);
+  charts.ranking = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: nomes,
+      datasets: [{
+        label: "Peças Entregues",
+        data: entregas,
+        backgroundColor: "rgba(30,136,229,0.8)",
+        borderColor: "#43A047",
+        borderWidth: 3,
+        borderRadius: 6,
+        barThickness: 26
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: { ticks: { color: "#9db4da" }, grid: { color: "rgba(255,255,255,0.05)" } },
+        y: { ticks: { color: "#9db4da" }, grid: { color: "rgba(255,255,255,0.05)" } }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "#0f172a",
+          borderColor: "#1E88E5",
+          borderWidth: 1,
+          titleColor: "#43A047",
+          bodyColor: "#e2e8f0"
+        }
+      },
+      animation: { duration: 800, easing: 'easeOutQuart' }
+    }
+  });
+}
+
+
+function abrirGrafico(tipo) {
+  const modal = document.createElement('div');
+  modal.classList.add('grafico-modal');
+  modal.innerHTML = `
+    <div class="grafico-container">
+      <button class="fechar" onclick="this.parentElement.parentElement.remove()">✖</button>
+      <h2>${tipo === 'tendencia' ? 'Tendência (14 dias)' :
+             tipo === 'desempenho' ? 'Desempenho do Reparador' :
+             'Ranking de Técnicos'}</h2>
+      <canvas id="modalChart"></canvas>
+      <button class="btn-download" onclick="baixarExcel('${tipo}')">📊 Baixar Relatório</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  // copia o gráfico atual pro modal
+  const srcChart = charts[tipo];
+  new Chart(document.getElementById("modalChart"), srcChart.config);
+}
+
+function baixarExcel(tipo) {
+  let rel = tipo === 'ranking' ? 'total' : tipo;
+  window.location.href = `/relatorio/${rel}`;
+}
+</script>
+
+
+</script>
+
 
 </body>
 </html>

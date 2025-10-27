@@ -2,6 +2,11 @@
 from flask import Flask, render_template, request, jsonify, session, redirect
 from auth_roles import require_login, require_roles, now_sp_str
 from enviar import send_email
+import sqlite3
+import csv
+import os
+from flask import send_file
+
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY','dev-secret')
@@ -179,6 +184,309 @@ def m_por_modelo():
     cur.execute("SELECT equipamento, SUM(CASE WHEN resultado='REPARADA' THEN 1 ELSE 0 END), SUM(CASE WHEN resultado='NAO_REPARADA' THEN 1 ELSE 0 END), COUNT(*) FROM os WHERE resultado IN ('REPARADA','NAO_REPARADA') GROUP BY equipamento ORDER BY 4 DESC")
     rows=[dict(equipamento=r[0],reparadas=r[1],nao_reparadas=r[2],total=r[3]) for r in cur.fetchall()]; conn.close(); return jsonify(rows)
 
+@app.route('/detalhes/<tipo>')
+@require_login
+@require_roles('ADMIN','DIRETORIA')
+def view_detalhes(tipo):
+    con = get_conn()
+    cur = con.cursor()
+
+    mapa = {
+        "reparadas": ("Reparada", "Equipamentos Reparados"),
+        "manutencao": ("Em atenção", "Equipamentos em Manutenção"),
+        "transito": ("Em atenção", "Equipamentos em Trânsito"),
+        "fase_final": ("Liberada para teste", "Equipamentos em Fase Final"),
+        "testes": ("Liberada para teste", "Equipamentos em Testes"),
+        "operacional": ("Reparada", "Equipamentos Operacionais"),
+        "entradas": (None, "Entradas de Hoje"),
+        "saidas": (None, "Saídas de Hoje"),
+        "total": (None, "Todos os Equipamentos"),
+    }
+
+    filtro, titulo = mapa.get(tipo, (None, "Detalhes"))
+
+    # === Entradas ===
+    if tipo == "entradas":
+        cur.execute("""
+            SELECT o.*, t.nome AS tecnico_nome
+            FROM os o
+            LEFT JOIN tecnicos t ON t.id = o.tecnico_entregou_id
+            WHERE date(o.data_registro)=date('now','localtime')
+            ORDER BY o.data_registro DESC
+        """)
+
+    # === Saídas ===
+    elif tipo == "saidas":
+        cur.execute("""
+            SELECT o.*, t.nome AS tecnico_nome
+            FROM os o
+            LEFT JOIN tecnicos t ON t.id = o.tecnico_entregou_id
+            WHERE date(o.resultado_em)=date('now','localtime')
+            ORDER BY o.resultado_em DESC
+        """)
+
+    # === Equipamentos Operacionais (Reparadas de fato) ===
+    elif tipo == "operacional":
+        cur.execute("""
+            SELECT o.*, t.nome AS tecnico_nome
+            FROM os o
+            LEFT JOIN tecnicos t ON t.id = o.tecnico_entregou_id
+            WHERE (o.status='Reparada' OR o.resultado='REPARADA')
+            ORDER BY o.data_registro DESC
+        """)
+
+    # === Demais tipos com filtro por status ===
+    elif filtro:
+        cur.execute("""
+            SELECT o.*, t.nome AS tecnico_nome
+            FROM os o
+            LEFT JOIN tecnicos t ON t.id = o.tecnico_entregou_id
+            WHERE o.status LIKE ?
+            ORDER BY o.data_registro DESC
+        """, (f"%{filtro}%",))
+
+    # === Todos ===
+    else:
+        cur.execute("""
+            SELECT o.*, t.nome AS tecnico_nome
+            FROM os o
+            LEFT JOIN tecnicos t ON t.id = o.tecnico_entregou_id
+            ORDER BY o.data_registro DESC
+        """)
+
+    dados = cur.fetchall()
+    con.close()
+
+    return render_template('detalhes.html', dados=dados, titulo=titulo, tipo=tipo)
+
+
+
+def buscar_dados_por_tipo(tipo):
+    con = get_conn()
+    cur = con.cursor()
+
+    mapa = {
+        "reparadas": "Reparada",
+        "manutencao": "Em atenção",
+        "transito": "Em atenção",
+        "fase_final": "Liberada para teste",
+        "testes": "Liberada para teste",
+        "operacional": "Reparada",
+    }
+
+    filtro = mapa.get(tipo)
+
+    if tipo == "entradas":
+        cur.execute("SELECT * FROM os WHERE date(data_registro)=date('now','localtime')")
+    elif tipo == "saidas":
+        cur.execute("SELECT * FROM os WHERE date(resultado_em)=date('now','localtime')")
+    elif filtro:
+        cur.execute("SELECT * FROM os WHERE status LIKE ?", (f"%{filtro}%",))
+    else:
+        cur.execute("SELECT * FROM os")
+
+    dados = cur.fetchall()
+    con.close()
+    return dados
+
+# Função auxiliar para exportar relatório CSV/XLSX com técnico
+def buscar_dados_para_relatorio(tipo):
+    con = get_conn()
+    cur = con.cursor()
+
+    if tipo == "reparadas":
+        where = "WHERE o.status='Reparada'"
+    elif tipo == "manutencao":
+        where = "WHERE o.status LIKE '%Em atenção%'"
+    elif tipo == "transito":
+        where = "WHERE o.status LIKE '%Em atenção%'"  # ajuste se tiver outro status p/ trânsito
+    elif tipo == "fase_final":
+        where = "WHERE o.status='Liberada para teste'"
+    elif tipo == "testes":
+        where = "WHERE o.status='Liberada para teste'"
+    elif tipo == "operacional":
+        where = "WHERE o.status='Reparada'"
+    elif tipo == "entradas":
+        where = "WHERE date(o.data_registro)=date('now','localtime')"
+    elif tipo == "saidas":
+        where = "WHERE date(o.resultado_em)=date('now','localtime')"
+    else:
+        where = ""
+
+    sql = f"""
+        SELECT
+          o.id,
+          o.os_numero,
+          o.equipamento,
+          o.status,
+          o.data_registro,
+          o.resultado,
+          o.sla_inicio,
+          COALESCE(t.nome, '—') AS tecnico_nome
+        FROM os o
+        LEFT JOIN tecnicos t ON t.id = o.tecnico_entregou_id
+        {where}
+        ORDER BY o.data_registro DESC
+    """
+    cur.execute(sql)
+    dados = cur.fetchall()
+    con.close()
+    return dados
+
+
+
+from io import BytesIO
+import xlsxwriter
+
+@app.route('/relatorio/<tipo>')
+@require_login
+@require_roles('ADMIN','DIRETORIA')
+def gerar_relatorio(tipo):
+    dados = buscar_dados_para_relatorio(tipo)
+
+    conn = get_conn()
+    cur = conn.cursor()
+
+    # === 1) Resumo geral ===
+    cur.execute("""
+        SELECT 
+            SUM(CASE WHEN resultado='REPARADA' THEN 1 ELSE 0 END) AS reparadas,
+            SUM(CASE WHEN resultado='NAO_REPARADA' THEN 1 ELSE 0 END) AS nao_reparadas
+        FROM os
+        WHERE pego_por_admin_em IS NOT NULL
+    """)
+    resumo = cur.fetchone()
+    total_rep = resumo["reparadas"] or 0
+    total_nrep = resumo["nao_reparadas"] or 0
+    total = total_rep + total_nrep
+    taxa = round((total_rep / total * 100), 1) if total else 0.0
+
+    # === 2) Dificuldade por equipamento ===
+    cur.execute("""
+        SELECT 
+            equipamento,
+            SUM(CASE WHEN resultado='REPARADA' THEN 1 ELSE 0 END) AS reparadas,
+            SUM(CASE WHEN resultado='NAO_REPARADA' THEN 1 ELSE 0 END) AS nao_reparadas,
+            COUNT(*) AS total,
+            ROUND((SUM(CASE WHEN resultado='REPARADA' THEN 1 ELSE 0 END) * 100.0) /
+                  NULLIF(COUNT(*),0),1) AS taxa_sucesso
+        FROM os
+        WHERE pego_por_admin_em IS NOT NULL
+        GROUP BY equipamento
+        ORDER BY taxa_sucesso ASC, total DESC
+    """)
+    dificuldade = cur.fetchall()
+
+    # === 3) Técnicos que mais entregaram peças ===
+    cur.execute("""
+        SELECT 
+            t.nome AS tecnico,
+            COUNT(o.id) AS entregas,
+            MAX(o.data_registro) AS ultimo_envio
+        FROM os o
+        LEFT JOIN tecnicos t ON t.id = o.tecnico_entregou_id
+        WHERE o.tecnico_entregou_id IS NOT NULL
+        GROUP BY t.nome
+        ORDER BY entregas DESC
+    """)
+    tecnicos = cur.fetchall()
+    conn.close()
+
+    # === Criação do Excel ===
+    output = BytesIO()
+    wb = xlsxwriter.Workbook(output, {'in_memory': True})
+
+    # ===== Estilos =====
+    header_fmt = wb.add_format({'bold': True, 'bg_color': '#1E88E5', 'font_color': 'white', 'align': 'center', 'border': 1})
+    cell_fmt = wb.add_format({'border': 1, 'align': 'left'})
+    num_fmt = wb.add_format({'border': 1, 'align': 'center', 'num_format': '0'})
+    pct_fmt = wb.add_format({'border': 1, 'align': 'center', 'num_format': '0.0%'})
+    title_fmt = wb.add_format({'bold': True, 'font_size': 14, 'font_color': '#1E88E5'})
+
+    # === Aba 1: Dados ===
+    ws1 = wb.add_worksheet('Dados')
+    headers = ["ID", "OS", "Equipamento", "Técnico", "Status", "Data Registro", "Resultado", "SLA Início"]
+    for col, h in enumerate(headers):
+        ws1.write(0, col, h, header_fmt)
+        ws1.set_column(col, col, 20)
+    for i, d in enumerate(dados, start=1):
+        ws1.write(i, 0, d["id"], cell_fmt)
+        ws1.write(i, 1, d["os_numero"], cell_fmt)
+        ws1.write(i, 2, d["equipamento"], cell_fmt)
+        ws1.write(i, 3, d["tecnico_nome"] or "—", cell_fmt)
+        ws1.write(i, 4, d["status"], cell_fmt)
+        ws1.write(i, 5, d["data_registro"], cell_fmt)
+        ws1.write(i, 6, d["resultado"] or "-", cell_fmt)
+        ws1.write(i, 7, d["sla_inicio"], cell_fmt)
+    ws1.add_table(0, 0, len(dados), len(headers)-1,
+        {'style': 'Table Style Medium 9', 'columns': [{'header': h} for h in headers]})
+
+    # === Aba 2: Dificuldade por Equipamento ===
+    ws2 = wb.add_worksheet('Dificuldade por Equipamento')
+    ws2.write('A1', 'Equipamentos com Maior Dificuldade (Rodrigo)', title_fmt)
+    headers2 = ["Equipamento", "Reparadas", "Não Reparadas", "Total", "Taxa de Sucesso (%)"]
+    for col, h in enumerate(headers2):
+        ws2.write(2, col, h, header_fmt)
+        ws2.set_column(col, col, 22)
+    for i, r in enumerate(dificuldade, start=3):
+        ws2.write(i, 0, r["equipamento"], cell_fmt)
+        ws2.write(i, 1, r["reparadas"], num_fmt)
+        ws2.write(i, 2, r["nao_reparadas"], num_fmt)
+        ws2.write(i, 3, r["total"], num_fmt)
+        ws2.write(i, 4, (r["taxa_sucesso"]/100) if r["taxa_sucesso"] else 0, pct_fmt)
+    ws2.add_table(2, 0, len(dificuldade)+2, len(headers2)-1,
+        {'style': 'Table Style Medium 9', 'columns': [{'header': h} for h in headers2]})
+
+    # === Gráfico de barras horizontais ===
+    chart = wb.add_chart({'type': 'bar'})
+    chart.add_series({
+        'name': 'Taxa de Sucesso (%)',
+        'categories': ['Dificuldade por Equipamento', 3, 0, 2+len(dificuldade), 0],
+        'values': ['Dificuldade por Equipamento', 3, 4, 2+len(dificuldade), 4],
+        'data_labels': {'value': True},
+        'fill': {'color': '#43A047'},  # verde
+        'border': {'color': '#1E88E5'}
+    })
+    chart.set_title({'name': 'Taxa de Sucesso por Equipamento'})
+    chart.set_x_axis({'name': 'Taxa de Sucesso (%)'})
+    chart.set_y_axis({'name': 'Equipamento'})
+    ws2.insert_chart('G3', chart, {'x_scale': 1.3, 'y_scale': 1.1})
+
+    # === Aba 3: Peças por Técnico ===
+    ws3 = wb.add_worksheet('Peças por Técnico')
+    ws3.write('A1', 'Técnicos que mais entregaram peças ao Rodrigo', title_fmt)
+    headers3 = ["Técnico", "Equipamentos Entregues", "Último Envio"]
+    for col, h in enumerate(headers3):
+        ws3.write(2, col, h, header_fmt)
+        ws3.set_column(col, col, 25)
+    for i, r in enumerate(tecnicos, start=3):
+        ws3.write(i, 0, r["tecnico"] or "—", cell_fmt)
+        ws3.write(i, 1, r["entregas"], num_fmt)
+        ws3.write(i, 2, r["ultimo_envio"], cell_fmt)
+    ws3.add_table(2, 0, len(tecnicos)+2, len(headers3)-1,
+        {'style': 'Table Style Medium 9', 'columns': [{'header': h} for h in headers3]})
+
+    # === Gráfico de colunas ===
+    chart2 = wb.add_chart({'type': 'column'})
+    chart2.add_series({
+        'name': 'Peças Enviadas',
+        'categories': ['Peças por Técnico', 3, 0, 2+len(tecnicos), 0],
+        'values': ['Peças por Técnico', 3, 1, 2+len(tecnicos), 1],
+        'fill': {'color': '#1E88E5'},
+        'data_labels': {'value': True}
+    })
+    chart2.set_title({'name': 'Ranking de Técnicos por Entregas'})
+    chart2.set_x_axis({'name': 'Técnico'})
+    chart2.set_y_axis({'name': 'Quantidade de Peças'})
+    ws3.insert_chart('E3', chart2, {'x_scale': 1.2, 'y_scale': 1.2})
+
+    wb.close()
+    output.seek(0)
+    filename = f"relatorio_{tipo}_{now_sp_str().split(' ')[0]}.xlsx"
+    return send_file(output, as_attachment=True,
+        download_name=filename,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
 
 
 # ====== Métricas por reparador (Admin que libera para teste) ======
@@ -186,17 +494,16 @@ def m_por_modelo():
 @require_login
 @require_roles('DIRETORIA','ADMIN')
 def metrics_reparador():
-    # pode vir por query ?reparador=email  | se não vier e for ADMIN, usa o usuário logado
     reparador = (request.args.get("reparador") or "").strip().lower()
     if not reparador and session.get('papel') == 'ADMIN':
         reparador = (session.get('usuario') or "").lower()
-
     if not reparador:
         return jsonify({"erro":"Informe ?reparador=<email> ou faça login como ADMIN"}), 400
 
-    conn = get_conn(); cur = conn.cursor()
+    conn = get_conn()
+    cur = conn.cursor()
 
-    # OS tratadas por esse reparador: as que ele marcou "Liberada para teste"
+    # === OS tratadas por esse reparador ===
     cur.execute("""
         SELECT DISTINCT h.os_id
         FROM status_history h
@@ -208,9 +515,99 @@ def metrics_reparador():
         return jsonify({
             "reparador": {"email": reparador},
             "cards": {"total": 0, "reparadas": 0, "nao_reparadas": 0, "taxa_sucesso_pct": 0.0},
-            "time": {"mttr_dias": 0.0, "lead_time_30d": 0.0},
-            "trend": [], "top_equipamentos": [], "last_activities": []
+            "trend": [], "equipamentos": [], "ranking_tecnicos": []
         })
+
+    ids_tuple = tuple(os_ids)
+    where_ids = f"IN ({','.join(['?']*len(os_ids))})"
+
+       # === Cards principais ===
+    cur.execute(f"""
+        SELECT
+          SUM(CASE WHEN resultado='REPARADA'     THEN 1 ELSE 0 END) AS reparadas,
+          SUM(CASE WHEN resultado='NAO_REPARADA' THEN 1 ELSE 0 END) AS nao_reparadas,
+          COUNT(*) AS total
+        FROM os
+        WHERE id {where_ids}
+    """, os_ids)
+    c = cur.fetchone()
+    total = c["total"] or 0
+    rep = c["reparadas"] or 0
+    nrep = c["nao_reparadas"] or 0
+    taxa = (rep / total * 100.0) if total else 0.0
+
+    # === Tendência 14 dias (entradas e saídas) ===
+    cur.execute(f"""
+    WITH dias AS (
+      SELECT date('now','localtime','-13 day') d
+      UNION ALL SELECT date('now','localtime','-12 day')
+      UNION ALL SELECT date('now','localtime','-11 day')
+      UNION ALL SELECT date('now','localtime','-10 day')
+      UNION ALL SELECT date('now','localtime','-9 day')
+      UNION ALL SELECT date('now','localtime','-8 day')
+      UNION ALL SELECT date('now','localtime','-7 day')
+      UNION ALL SELECT date('now','localtime','-6 day')
+      UNION ALL SELECT date('now','localtime','-5 day')
+      UNION ALL SELECT date('now','localtime','-4 day')
+      UNION ALL SELECT date('now','localtime','-3 day')
+      UNION ALL SELECT date('now','localtime','-2 day')
+      UNION ALL SELECT date('now','localtime','-1 day')
+      UNION ALL SELECT date('now','localtime')
+    )
+    SELECT
+      d AS dia,
+      (SELECT COUNT(*) FROM os o WHERE o.id {where_ids} AND date(o.data_registro)=d) AS entradas,
+      (SELECT COUNT(*) FROM os o WHERE o.id {where_ids} AND date(COALESCE(o.resultado_em,''))=d) AS saidas
+    FROM dias
+    """, os_ids*2)
+    trend = [dict(r) for r in cur.fetchall()]
+
+    # === Dificuldade por equipamento ===
+    cur.execute(f"""
+        SELECT 
+            equipamento,
+            SUM(CASE WHEN resultado='REPARADA'     THEN 1 ELSE 0 END) AS reparadas,
+            SUM(CASE WHEN resultado='NAO_REPARADA' THEN 1 ELSE 0 END) AS nao_reparadas,
+            COUNT(*) AS total,
+            ROUND((SUM(CASE WHEN resultado='REPARADA' THEN 1 ELSE 0 END) * 100.0) /
+                  NULLIF(COUNT(*),0),1) AS taxa_sucesso
+        FROM os
+        WHERE id {where_ids}
+        GROUP BY equipamento
+        ORDER BY taxa_sucesso ASC, total DESC
+    """, os_ids)
+    equipamentos = [dict(r) for r in cur.fetchall()]
+
+    # === Ranking de técnicos (quem mais enviou peças a este reparador) ===
+    cur.execute(f"""
+        SELECT 
+            t.nome AS tecnico,
+            COUNT(o.id) AS entregas,
+            MAX(o.data_registro) AS ultimo_envio
+        FROM os o
+        LEFT JOIN tecnicos t ON t.id = o.tecnico_entregou_id
+        WHERE o.id {where_ids} AND o.tecnico_entregou_id IS NOT NULL
+        GROUP BY t.nome
+        ORDER BY entregas DESC
+    """, os_ids)
+    ranking_tecnicos = [dict(r) for r in cur.fetchall()]
+
+    conn.close()
+
+    return jsonify({
+        "reparador": {"email": reparador},
+        "cards": {
+            "total": total,
+            "reparadas": rep,
+            "nao_reparadas": nrep,
+            "taxa_sucesso_pct": round(taxa, 1)
+        },
+        "trend": trend,
+        "equipamentos": equipamentos,
+        "ranking_tecnicos": ranking_tecnicos
+
+    })
+
 
     ids_tuple = tuple(os_ids)
     where_ids = f"IN ({','.join(['?']*len(os_ids))})"
@@ -311,15 +708,6 @@ def metrics_reparador():
 
 
 
-
-@app.route('/api/metrics/ranking_tecnicos')
-@require_login
-@require_roles('ADMIN','DIRETORIA')
-def m_rank():
-    conn=get_conn(); cur=conn.cursor()
-    cur.execute("SELECT t.id,t.nome,t.email,COUNT(o.id) FROM tecnicos t JOIN os o ON o.tecnico_entregou_id=t.id GROUP BY t.id,t.nome,t.email ORDER BY COUNT(o.id) DESC,t.nome ASC")
-    rows=[dict(tecnico_id=r[0],nome=r[1],email=r[2],entregas=r[3]) for r in cur.fetchall()]; conn.close(); return jsonify(rows)
-
 @app.route('/api/metrics/sla_resumo')
 @require_login
 @require_roles('ADMIN','DIRETORIA')
@@ -338,6 +726,8 @@ def m_sla():
         if t3 and t4: d['t_teste_h']=round((t4-t3).total_seconds()/3600,2)
         out.append(d)
     return jsonify(out)
+
+
 
 @app.route('/api/metrics/rem_aguardando')
 @require_login
@@ -371,7 +761,6 @@ def q_one(sql, params=(), default=None):
     conn.close()
     return (row[0] if row and row[0] is not None else default)
 
-# ===== API do dashboard =====
 @app.route('/api/metrics')
 @require_login
 @require_roles('ADMIN','DIRETORIA')
@@ -379,13 +768,14 @@ def metrics():
     # Cards por status e total
     st = q_rows("""
         SELECT
-          SUM(CASE WHEN status='Em atenção'            THEN 1 ELSE 0 END) AS em_atencao,
-          SUM(CASE WHEN status='Liberada para teste'   THEN 1 ELSE 0 END) AS liberada_teste,
-          SUM(CASE WHEN status='Reparada'              THEN 1 ELSE 0 END) AS reparada,
-          SUM(CASE WHEN status='Não reparada'          THEN 1 ELSE 0 END) AS nao_reparada,
+          SUM(CASE WHEN status='Em atenção' THEN 1 ELSE 0 END) AS em_atencao,
+          SUM(CASE WHEN status='Liberada para teste' THEN 1 ELSE 0 END) AS liberada_teste,
+          SUM(CASE WHEN status='Reparada' OR resultado='REPARADA' THEN 1 ELSE 0 END) AS reparada,
+          SUM(CASE WHEN status='Não reparada' OR resultado='NAO_REPARADA' THEN 1 ELSE 0 END) AS nao_reparada,
           COUNT(*) AS total
         FROM os
     """)
+
     st = dict(zip(
         ["em_atencao","liberada_teste","reparada","nao_reparada","total"],
         list(st[0]) if st else [0,0,0,0,0]
@@ -398,6 +788,7 @@ def metrics():
         FROM os
     """)
     today = dict(today[0]) if today else {"entradas_hoje":0,"saidas_hoje":0}
+
 
     # Tendência 14 dias
     trend = q_rows("""
@@ -525,6 +916,7 @@ def api_listar_os():
 
 
 
+
 if __name__ == "__main__":
     # garante que a pasta do banco existe
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
@@ -535,6 +927,9 @@ if __name__ == "__main__":
         seed()
     except Exception as e:
         print("Aviso: erro ao rodar migrate/seed ->", e)
+
+
+        
     
     # inicializa o servidor
     app.run(host="0.0.0.0", port=5008, debug=True)

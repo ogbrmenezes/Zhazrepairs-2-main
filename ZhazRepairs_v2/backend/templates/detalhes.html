@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ titulo }} • ZHAZ Repairs</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    body.bg {
+      background-color: #0f172a;
+      color: #e2e8f0;
+      font-family: "Inter", Arial, sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .wrap {
+      width: 100%;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 16px;
+      flex: 1;
+    }
+
+    h1.title {
+      font-size: 1.9rem;
+      font-weight: 800;
+      color: #dbeafe;
+      margin-bottom: 8px;
+    }
+
+    p.subtitle {
+      color: #94a3b8;
+      margin-bottom: 24px;
+    }
+
+    /* Barra de ações */
+    .actions {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+      align-items: center;
+    }
+
+    .actions input {
+      flex: 1;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #1e293b;
+      background: #0b1220;
+      color: #e2e8f0;
+    }
+
+    .actions input:focus {
+      border-color: #1E88E5;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(30,136,229,.25);
+    }
+
+    .btn {
+      border: none;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      opacity: 0.95;
+    }
+
+    .btn-voltar { background: #43A047; color: #fff; }
+    .btn-excel { background: #1E88E5; color: #fff; }
+
+    .table-wrapper {
+      background: #0b1220;
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+    }
+
+    thead {
+      background: #1e293b;
+    }
+
+    th, td {
+      padding: 12px 16px;
+      text-align: left;
+    }
+
+    th {
+      color: #a5b4fc;
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 0.8rem;
+    }
+
+    tr:nth-child(even) {
+      background: rgba(255,255,255,0.04);
+    }
+
+    tr:hover {
+      background: rgba(30,136,229,0.08);
+    }
+
+    .status {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: capitalize;
+    }
+
+    .status.Reparada { background: #16a34a33; color: #4ade80; }
+    .status.Manutencao { background: #facc1533; color: #fbbf24; }
+    .status.Ematenção { background: #60a5fa33; color: #60a5fa; }
+    .status.Liberadaparateste { background: #38bdf833; color: #38bdf8; }
+    .status.Nãoreparada { background: #ef444433; color: #ef4444; }
+
+    .empty {
+      text-align: center;
+      padding: 36px;
+      color: #9ca3af;
+    }
+
+    footer {
+      text-align: center;
+      padding: 18px;
+      color: #64748b;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body class="bg">
+  <div class="wrap">
+    <h1 class="title">{{ titulo }}</h1>
+    <p class="subtitle">Veja abaixo os registros filtrados por categoria.</p>
+
+    <div class="actions">
+      <input id="busca" placeholder="🔍 Buscar por número da OS ou nome do equipamento..." onkeyup="filtrarTabela()">
+      <button onclick="window.history.back()" class="btn btn-voltar">← Voltar</button>
+        <button class="btn btn-excel" onclick="baixarExcel()">📊 Baixar Excel</button>
+      
+    </div>
+
+    {% if dados %}
+    <div class="table-wrapper">
+      <table id="tabelaDados">
+        <thead>
+  <tr>
+    <th>ID</th>
+    <th>OS</th>
+    <th>Equipamento</th>
+    <th>Técnico</th> <!-- NOVO -->
+    <th>Status</th>
+    <th>Data Registro</th>
+    <th>Resultado</th>
+    <th>SLA Início</th>
+  </tr>
+</thead>
+<tbody>
+  {% for r in dados %}
+  <tr>
+    <td>{{ r.id }}</td>
+    <td>{{ r.os_numero }}</td>
+    <td>{{ r.equipamento }}</td>
+    <td>{{ r.tecnico_nome or '—' }}</td> <!-- NOVO -->
+    <td>{{ r.status }}</td>
+    <td>{{ r.data_registro }}</td>
+    <td>{{ r.resultado or '-' }}</td>
+    <td>{{ r.sla_inicio or '' }}</td>
+  </tr>
+  {% endfor %}
+</tbody>
+
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">Nenhum registro encontrado.</div>
+    {% endif %}
+  </div>
+
+  <footer>© 2025 ZHAZ Repairs — Sistema de Controle de Equipamentos</footer>
+
+  <script>
+    // 🔍 Filtro da tabela (busca)
+    function filtrarTabela() {
+      const input = document.getElementById("busca");
+      const filter = input.value.toLowerCase();
+      const rows = document.querySelectorAll("#tabelaDados tbody tr");
+      rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(filter) ? "" : "none";
+      });
+    }
+
+    // 📊 Exporta para Excel
+    // 🔍 Filtro da tabela (busca)
+  function filtrarTabela() {
+    const input = document.getElementById("busca");
+    const filter = input.value.toLowerCase();
+    const rows = document.querySelectorAll("#tabelaDados tbody tr");
+    rows.forEach(row => {
+      const text = row.innerText.toLowerCase();
+      row.style.display = text.includes(filter) ? "" : "none";
+    });
+  }
+
+  // 📊 Baixar relatório Excel (chama o backend Flask)
+  function baixarExcel(tipo) {
+    window.location.href = `/relatorio/${tipo}`;
+  }
+  </script>
+</body>
+</html>
