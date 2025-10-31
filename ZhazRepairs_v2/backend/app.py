@@ -736,6 +736,8 @@ def m_rem_aguardando():
     conn=get_conn(); cur=conn.cursor(); cur.execute("SELECT id,os_numero,equipamento,data_registro FROM os WHERE aguardando_reposicao=1 ORDER BY data_registro ASC")
     rows=[dict(id=r[0],os=r[1],equipamento=r[2],data_registro=r[3]) for r in cur.fetchall()]; conn.close(); return jsonify(rows)
 
+
+
 # ===== Dashboard (página) =====
 @app.route('/dashboard')
 @require_login
